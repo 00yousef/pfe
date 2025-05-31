@@ -1,0 +1,59 @@
+// This function creates a SOME/IP message to set the fan speed
+// Input: msg.payload should contain the desired fan speed (0-4)
+
+// Constants (match with your Python server)
+const SERVER_IP = '127.0.0.1'; // Update this with your server IP
+const SERVER_PORT = 30509;     // Update with your server port
+const TEMPERATURE_SERVICE_ID = 0x0001;
+const SET_FAN_SPEED_METHOD_ID = 0x0002;
+const PROTOCOL_VERSION = 0x01;
+const INTERFACE_VERSION = 0x01;
+const MESSAGE_TYPE = 0x00;     // Request type
+
+// Generate random client and session IDs (or use fixed ones)
+const CLIENT_ID = Math.floor(Math.random() * 0xFFFF);
+const SESSION_ID = Math.floor(Math.random() * 0xFFFF);
+
+// Get fan speed from input (default to 0 if not provided)
+let fanSpeed = 0;
+if (typeof msg.payload === 'number' && msg.payload >= 0 && msg.payload <= 4) {
+    fanSpeed = Math.floor(msg.payload);
+} else {
+    node.warn("Invalid fan speed. Using default (0). Valid values: 0-4");
+}
+
+// Create SOME/IP header (16 bytes)
+// Format: ServiceID(2) + MethodID(2) + ClientID(2) + SessionID(2) + 
+//         ProtocolVersion(1) + InterfaceVersion(1) + MessageType(1) + ReturnCode(1) +
+//         PayloadLength(4)
+
+// Create a buffer for the header (16 bytes)
+const header = Buffer.alloc(16);
+
+// Write the header fields
+header.writeUInt16BE(TEMPERATURE_SERVICE_ID, 0);  // Service ID
+header.writeUInt16BE(SET_FAN_SPEED_METHOD_ID, 2); // Method ID
+header.writeUInt16BE(CLIENT_ID, 4);               // Client ID
+header.writeUInt16BE(SESSION_ID, 6);              // Session ID
+header.writeUInt8(PROTOCOL_VERSION, 8);           // Protocol version
+header.writeUInt8(INTERFACE_VERSION, 9);          // Interface version
+header.writeUInt8(MESSAGE_TYPE, 10);              // Message type
+header.writeUInt8(0x00, 11);                      // Return code (reserved for response)
+header.writeUInt32BE(1, 12);                      // Payload length (1 byte)
+
+// Create payload - a single byte for fan speed
+const payload = Buffer.alloc(1);
+payload.writeUInt8(fanSpeed, 0);
+
+// Combine header and payload
+const message = Buffer.concat([header, payload]);
+
+// Prepare UDP message
+msg.payload = message;
+msg.ip = SERVER_IP;
+msg.port = SERVER_PORT;
+
+// Log what we're doing
+node.status({fill:"green", shape:"dot", text:`Setting fan speed to ${fanSpeed}`});
+
+return msg;
